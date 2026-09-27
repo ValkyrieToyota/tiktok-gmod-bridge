@@ -1,0 +1,15 @@
+{
+  "name": "tiktok-gmod-bridge",
+  "version": "1.0.0",
+  "description": "TikTok Live Connector to Garry's Mod Anticitizen vs Combine Battle",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "mock": "node mock_test.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "tiktok-live-connector": "^1.2.0"
+  }
+}

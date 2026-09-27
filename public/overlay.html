@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Live Battle - Stream Overlay</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Tahoma, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: transparent;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 16px;
+        }
+
+        /* ------------------------------------------------------------- */
+        /* TOP SCOREBOARD HUD (Tug-of-War Bar)                           */
+        /* ------------------------------------------------------------- */
+        #topScoreboard {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(15, 18, 26, 0.88);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 10px 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+
+        .score-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            width: 480px;
+        }
+
+        .team-box {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .team-box.ally {
+            align-items: flex-start;
+            color: #2ecc71;
+        }
+
+        .team-box.enemy {
+            align-items: flex-end;
+            color: #3498db;
+        }
+
+        .team-name {
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .team-score {
+            font-size: 26px;
+            font-weight: 900;
+            color: #ffffff;
+            line-height: 1.1;
+        }
+
+        .vs-badge {
+            background: #e74c3c;
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 13px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+            box-shadow: 0 0 12px rgba(231, 76, 60, 0.6);
+        }
+
+        .tug-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: #3498db;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .tug-bar-fill {
+            height: 100%;
+            width: 50%;
+            background: #2ecc71;
+            transition: width 0.4s ease;
+            box-shadow: 0 0 8px #2ecc71;
+        }
+
+        /* ------------------------------------------------------------- */
+        /* FLOATING NOTIFICATION ALERTS BANNER                           */
+        /* ------------------------------------------------------------- */
+        #alertContainer {
+            position: absolute;
+            bottom: 145px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+            z-index: 99;
+        }
+
+        .alert-pill {
+            background: linear-gradient(135deg, rgba(20, 24, 36, 0.95), rgba(30, 36, 54, 0.95));
+            backdrop-filter: blur(8px);
+            border: 2px solid #f1c40f;
+            border-radius: 30px;
+            padding: 8px 22px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 6px 24px rgba(241, 196, 15, 0.35);
+            animation: slideUpFade 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes slideUpFade {
+            0% { opacity: 0; transform: translateY(20px) scale(0.85); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .alert-icon {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 4px #f1c40f);
+        }
+
+        .alert-text {
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .alert-user {
+            color: #f1c40f;
+            font-weight: 800;
+        }
+
+        .alert-unit {
+            color: #2ecc71;
+            font-weight: 800;
+        }
+
+        /* ------------------------------------------------------------- */
+        /* ACTION CARDS GRID (STREAM BOTTOM OVERLAY)                     */
+        /* ------------------------------------------------------------- */
+        #cardsWrapper {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .grid-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1100px;
+            padding: 0 8px;
+        }
+
+        .live-tag {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(15, 18, 26, 0.85);
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #ecf0f1;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #2ecc71;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #2ecc71;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.7; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.7; }
+        }
+
+        .cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            max-width: 1180px;
+            width: 100%;
+        }
+
+        /* CARD STYLES */
+        .action-card {
+            position: relative;
+            width: 102px;
+            height: 122px;
+            background: linear-gradient(165deg, rgba(28, 34, 48, 0.94), rgba(18, 22, 32, 0.96));
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.14);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 6px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, border-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .action-card:hover {
+            transform: translateY(-4px) scale(1.04);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Card Faction Themes */
+        .action-card.faction-ally {
+            border-color: rgba(46, 204, 113, 0.6);
+            box-shadow: 0 4px 16px rgba(46, 204, 113, 0.2);
+        }
+
+        .action-card.faction-ally:hover {
+            border-color: #2ecc71;
+            box-shadow: 0 0 20px rgba(46, 204, 113, 0.5);
+        }
+
+        .action-card.faction-enemy {
+            border-color: rgba(231, 76, 60, 0.6);
+            box-shadow: 0 4px 16px rgba(231, 76, 60, 0.2);
+        }
+
+        .action-card.faction-enemy:hover {
+            border-color: #e74c3c;
+            box-shadow: 0 0 20px rgba(231, 76, 60, 0.5);
+        }
+
+        .action-card.faction-dropship {
+            border-color: rgba(52, 152, 219, 0.7);
+            background: linear-gradient(165deg, rgba(20, 36, 56, 0.95), rgba(14, 24, 38, 0.96));
+            box-shadow: 0 4px 16px rgba(52, 152, 219, 0.25);
+        }
+
+        .action-card.faction-dropship:hover {
+            border-color: #3498db;
+            box-shadow: 0 0 22px rgba(52, 152, 219, 0.6);
+        }
+
+        /* Action Trigger Glow Animation */
+        .action-card.active-trigger {
+            animation: cardTrigger 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes cardTrigger {
+            0% { transform: scale(1); }
+            35% { transform: scale(1.18); border-color: #f1c40f; box-shadow: 0 0 30px #f1c40f; }
+            70% { transform: scale(1.08); border-color: #f39c12; }
+            100% { transform: scale(1); }
+        }
+
+        /* Card Elements */
+        .card-top {
+            width: 100%;
+            text-align: center;
+        }
+
+        .card-unit-name {
+            font-size: 11px;
+            font-weight: 800;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .card-unit-sub {
+            font-size: 9px;
+            font-weight: 700;
+            opacity: 0.85;
+            text-transform: uppercase;
+        }
+
+        .faction-ally .card-unit-sub { color: #2ecc71; }
+        .faction-enemy .card-unit-sub { color: #e74c3c; }
+        .faction-dropship .card-unit-sub { color: #3498db; }
+
+        .card-icon-area {
+            position: relative;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 2px 0;
+        }
+
+        .unit-avatar {
+            width: 38px;
+            height: 38px;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+        }
+
+        /* Trigger Badge at Bottom */
+        .card-bottom-badge {
+            width: 100%;
+            background: rgba(10, 12, 18, 0.85);
+            border-radius: 6px;
+            padding: 3px 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .gift-icon {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .trigger-text {
+            font-size: 10px;
+            font-weight: 800;
+            color: #f1c40f;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .count-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #e74c3c;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 1px 5px;
+            border-radius: 8px;
+            box-shadow: 0 0 6px rgba(231, 76, 60, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP SCOREBOARD -->
+    <div id="topScoreboard">
+        <div class="score-row">
+            <div class="team-box ally">
+                <span class="team-name" id="allyNameDisplay">กบฏ ANTICITIZEN</span>
+                <span class="team-score" id="allyScoreDisplay">0</span>
+            </div>
+            <div class="vs-badge">VS</div>
+            <div class="team-box enemy">
+                <span class="team-name" id="enemyNameDisplay">คอมบายน์ COMBINE</span>
+                <span class="team-score" id="enemyScoreDisplay">0</span>
+            </div>
+        </div>
+        <div class="tug-bar-bg">
+            <div class="tug-bar-fill" id="tugBarFill"></div>
+        </div>
+    </div>
+
+    <!-- FLOATING ALERT BANNER -->
+    <div id="alertContainer"></div>
+
+    <!-- ACTION CARDS GRID -->
+    <div id="cardsWrapper">
+        <div class="grid-header">
+            <div class="live-tag">
+                <div class="pulse-dot"></div>
+                <span id="liveStatusText">TIKTOK LIVE INTERACTIVE BATTLE</span>
+            </div>
+            <div class="live-tag">
+                <span>❤️ ไลก์สะสม: <b id="totalLikesDisplay" style="color: #ff4757;">0</b></span>
+            </div>
+        </div>
+
+        <div class="cards-container" id="cardsGrid">
+            <!-- Dynamic cards injected via JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // SVG ICONS DICTIONARY (High-detail vector icons for TikTok events & gifts)
+        // =========================================================================
+        const SVG_ICONS = {
+            rose: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#ff4757" d="M12 2C9.5 2 7 3.5 7 6c0 2 1.5 3.5 3 4.5-.5 1-1 2-1 3.5 0 2.5 2 4.5 4 4.5s4-2 4-4.5c0-1.5-.5-2.5-1-3.5 1.5-1 3-2.5 3-4.5 0-2.5-2.5-4-5-4z"/><path fill="#2ed573" d="M11 14h2v8h-2z"/><path fill="#2ed573" d="M12 16c-2 0-4-1-5-3 0 2 2 4 5 4z"/></svg>`,
+            heart: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#ff4757" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`,
+            finger_heart: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#ffa502" d="M12 2a4 4 0 0 0-4 4v5.5a1.5 1.5 0 0 0 3 0V6a1 1 0 0 1 2 0v5.5a1.5 1.5 0 0 0 3 0V6a4 4 0 0 0-4-4z"/><path fill="#ff4757" d="M14 1a1 1 0 0 0-1 1 1 1 0 0 0 1 1 1 1 0 0 0 1-1 1 1 0 0 0-1-1z"/></svg>`,
+            doughnut: `<svg viewBox="0 0 24 24" class="gift-icon"><circle cx="12" cy="12" r="9" fill="#ff7f50"/><circle cx="12" cy="12" r="3.5" fill="#1e2434"/><circle cx="9" cy="8" r="1" fill="#fff"/><circle cx="15" cy="8" r="1" fill="#3742fa"/><circle cx="14" cy="15" r="1" fill="#2ed573"/></svg>`,
+            cap: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#3742fa" d="M4 14c0-4 3.5-7 8-7s8 3 8 7H4z"/><path fill="#2f3542" d="M12 14h9c1 0 2 .5 2 1.5s-1.5 1.5-3 1.5H12v-3z"/></svg>`,
+            falcon: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#eccc68" d="M12 2L4 7v6c0 5.5 3.5 10.5 8 12 4.5-1.5 8-6.5 8-12V7l-8-5zm0 3.2l5 3.1v4.7c0 3.5-2.2 6.7-5 7.8-2.8-1.1-5-4.3-5-7.8V8.3l5-3.1z"/></svg>`,
+            whale: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#70a1ff" d="M2 13c0 4 3 7 7 7h8c2 0 4-1.5 4-3.5 0-1.5-1-2.5-2.5-2.8C20 12 21 9 19 8c-1.5-.7-3 .2-4.5 1.2C13 8 10 8 7 9c-3 1-5 2.5-5 4z"/></svg>`,
+            like: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#ff4757" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>`,
+            follow: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#2ed573" d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`,
+            default_gift: `<svg viewBox="0 0 24 24" class="gift-icon"><path fill="#ffa502" d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.65-.5-.65C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1h-2V5c0-.55.45-1 1-1zM9 4c.55 0 1 .45 1 1v1H8c-.55 0-1-.45-1-1s.45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76V14h2V8.76L15.38 12 17 10.83 14.92 8H20v6z"/></svg>`
+        };
+
+        // =========================================================================
+        // UNIT AVATARS DICTIONARY (Character Silhouettes & Badges)
+        // =========================================================================
+        const UNIT_ICONS = {
+            rebel: `<svg viewBox="0 0 32 32" class="unit-avatar"><circle cx="16" cy="10" r="6" fill="#2ecc71"/><path fill="#2ecc71" d="M16 18c-7 0-11 4-11 8v2h22v-2c0-4-4-8-11-8z"/><path fill="#fff" d="M14 11l4-4v8z"/></svg>`,
+            combine: `<svg viewBox="0 0 32 32" class="unit-avatar"><circle cx="16" cy="10" r="6" fill="#3498db"/><path fill="#3498db" d="M16 18c-7 0-11 4-11 8v2h22v-2c0-4-4-8-11-8z"/><circle cx="16" cy="10" r="2.5" fill="#e74c3c"/></svg>`,
+            dropship: `<svg viewBox="0 0 32 32" class="unit-avatar"><path fill="#70a1ff" d="M4 14l12-8 12 8-4 10-8-4-8 4z"/><circle cx="16" cy="15" r="3" fill="#e74c3c"/></svg>`,
+            strider: `<svg viewBox="0 0 32 32" class="unit-avatar"><circle cx="16" cy="8" r="5" fill="#f1c40f"/><path stroke="#f1c40f" stroke-width="2" d="M13 13L6 28M16 13v15M19 13l7 15"/></svg>`,
+            zombie: `<svg viewBox="0 0 32 32" class="unit-avatar"><circle cx="16" cy="11" r="6" fill="#a4b0be"/><path fill="#57606f" d="M16 18c-6 0-9 4-9 8v2h18v-2c0-4-3-8-9-8z"/><path stroke="#ff4757" stroke-width="1.5" d="M12 9l2 4M20 9l-2 4"/></svg>`
+        };
+
+        // Fallback Default Rules
+        let CurrentRules = [
+            { name: "Rebel Follower", trigger: "follow", value: "1", faction: "rebel", npc: "npc_citizen", count: 1 },
+            { name: "Civil Protection", trigger: "like", value: "20", faction: "combine", npc: "npc_metropolice", count: 1 },
+            { name: "Combine Soldier", trigger: "like", value: "50", faction: "combine", npc: "npc_combine_s", count: 1 },
+            { name: "Hero Barney Calhoun", trigger: "gift", value: "heart", faction: "rebel", npc: "npc_barney", count: 1 },
+            { name: "Hero Alyx Vance", trigger: "gift", value: "ice cream", faction: "rebel", npc: "npc_alyx", count: 1 },
+            { name: "Dropship Combat APC", trigger: "gift", value: "doughnut", faction: "combine", npc: "dropship_apc", count: 1 },
+            { name: "Dropship Strider Boss", trigger: "gift", value: "falcon", faction: "combine", npc: "dropship_strider", count: 1 },
+            { name: "Dropship Strider + Hunters", trigger: "gift", value: "whale", faction: "combine", npc: "dropship_strider_hunter", count: 1 }
+        ];
+
+        function getTriggerBadgeHTML(rule) {
+            const trig = (rule.trigger || 'follow').toLowerCase();
+            const val = (rule.value || '').toLowerCase();
+
+            if (trig === 'follow') {
+                return `${SVG_ICONS.follow} <span class="trigger-text">ติดตาม (Follow)</span>`;
+            } else if (trig === 'like') {
+                return `${SVG_ICONS.like} <span class="trigger-text">${rule.value || 20} ไลก์</span>`;
+            } else if (trig === 'gift') {
+                let icon = SVG_ICONS.default_gift;
+                let label = rule.value || 'Gift';
+
+                if (val.includes('rose') || val.includes('กุหลาบ')) { icon = SVG_ICONS.rose; label = 'Rose (1)'; }
+                else if (val.includes('heart') || val.includes('หัวใจ')) { icon = SVG_ICONS.heart; label = 'Heart (1)'; }
+                else if (val.includes('finger') || val.includes('มินิ')) { icon = SVG_ICONS.finger_heart; label = 'Finger Heart (5)'; }
+                else if (val.includes('doughnut') || val.includes('โดนัท')) { icon = SVG_ICONS.doughnut; label = 'Doughnut (30)'; }
+                else if (val.includes('cap') || val.includes('หมวก')) { icon = SVG_ICONS.cap; label = 'Cap (99)'; }
+                else if (val.includes('falcon') || val.includes('เหยี่ยว')) { icon = SVG_ICONS.falcon; label = 'Falcon (1K)'; }
+                else if (val.includes('whale') || val.includes('วาฬ')) { icon = SVG_ICONS.whale; label = 'Whale (2K)'; }
+                else if (val.startsWith('coins:')) { label = '>=' + val.split(':')[1] + ' Coins'; }
+
+                return `${icon} <span class="trigger-text">${label}</span>`;
+            }
+            return `${SVG_ICONS.default_gift} <span class="trigger-text">${rule.value || trig}</span>`;
+        }
+
+        function getUnitIcon(rule) {
+            const npc = (rule.npc || '').toLowerCase();
+            if (npc.includes('dropship') || npc.includes('strider')) return UNIT_ICONS.dropship;
+            if (npc.includes('combine') || npc.includes('police') || npc.includes('metro')) return UNIT_ICONS.combine;
+            if (npc.includes('zombie') || npc.includes('antlion')) return UNIT_ICONS.zombie;
+            return UNIT_ICONS.rebel;
+        }
+
+        function renderCards() {
+            const container = document.getElementById('cardsGrid');
+            container.innerHTML = '';
+
+            CurrentRules.forEach((rule, index) => {
+                const card = document.createElement('div');
+                const isAlly = (rule.faction === 'rebel');
+                const isDropship = (rule.npc || '').includes('dropship');
+                
+                let factionClass = isAlly ? 'faction-ally' : 'faction-enemy';
+                if (isDropship) factionClass = 'faction-dropship';
+
+                card.className = `action-card ${factionClass}`;
+                card.id = `card-${index}`;
+
+                const countBadge = (rule.count && rule.count > 1) ? `<div class="count-badge">x${rule.count}</div>` : '';
+                const subTitle = isAlly ? 'ALLY' : (isDropship ? 'AIR RAID' : 'ENEMY');
+
+                card.innerHTML = `
+                    ${countBadge}
+                    <div class="card-top">
+                        <div class="card-unit-name">${rule.name || 'Unit'}</div>
+                        <div class="card-unit-sub">${subTitle}</div>
+                    </div>
+                    <div class="card-icon-area">
+                        ${getUnitIcon(rule)}
+                    </div>
+                    <div class="card-bottom-badge">
+                        ${getTriggerBadgeHTML(rule)}
+                    </div>
+                `;
+
+                // Interactive test click
+                card.onclick = () => {
+                    triggerCardAnimation(index, 'Tester', rule.value || rule.trigger);
+                };
+
+                container.appendChild(card);
+            });
+        }
+
+        function triggerCardAnimation(index, username, detail) {
+            const card = document.getElementById(`card-${index}`);
+            if (card) {
+                card.classList.remove('active-trigger');
+                void card.offsetWidth; // Trigger reflow
+                card.classList.add('active-trigger');
+            }
+
+            const rule = CurrentRules[index];
+            showFloatingAlert(username, detail, rule ? rule.name : 'Battle Unit');
+        }
+
+        function showFloatingAlert(username, detail, unitName) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = 'alert-pill';
+            alert.innerHTML = `
+                ${SVG_ICONS.rose}
+                <div class="alert-text">
+                    <span class="alert-user">@${username}</span> สั่งเสก <span class="alert-unit">${unitName}</span>!
+                </div>
+            `;
+            container.appendChild(alert);
+
+            setTimeout(() => {
+                alert.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+                alert.style.opacity = '0';
+                alert.style.transform = 'translateY(-15px) scale(0.9)';
+                setTimeout(() => alert.remove(), 400);
+            }, 3200);
+        }
+
+        // =========================================================================
+        // REAL-TIME SERVER-SENT EVENTS & DATA POLLING
+        // =========================================================================
+        const isLocalFile = (window.location.protocol === 'file:');
+        const serverBase = isLocalFile ? 'http://127.0.0.1:3000' : '';
+
+        function initEventStream() {
+            if (window.EventSource) {
+                try {
+                    const evtSource = new EventSource(serverBase + '/events');
+                    
+                    evtSource.onmessage = function(e) {
+                        try {
+                            const data = JSON.parse(e.data);
+                            handleLiveEvent(data);
+                        } catch (err) {}
+                    };
+
+                    evtSource.onerror = function() {
+                        evtSource.close();
+                        setTimeout(initEventStream, 3500);
+                    };
+                } catch (e) {
+                    setTimeout(initEventStream, 4000);
+                }
+            }
+        }
+
+        function handleLiveEvent(data) {
+            if (data.type === 'init' || data.type === 'rules_update') {
+                if (data.rules && Array.isArray(data.rules) && data.rules.length > 0) {
+                    CurrentRules = data.rules;
+                    renderCards();
+                }
+                if (data.username) {
+                    document.getElementById('liveStatusText').innerText = `TIKTOK: @${data.username}`;
+                }
+                if (data.totalLikes !== undefined) {
+                    document.getElementById('totalLikesDisplay').innerText = data.totalLikes;
+                }
+                if (data.teamConfig) {
+                    if (data.teamConfig.ally_name) document.getElementById('allyNameDisplay').innerText = data.teamConfig.ally_name;
+                    if (data.teamConfig.enemy_name) document.getElementById('enemyNameDisplay').innerText = data.teamConfig.enemy_name;
+                }
+            } else if (data.type === 'gift') {
+                const matchIndex = CurrentRules.findIndex(r => {
+                    const rVal = (r.value || '').toLowerCase();
+                    const gName = (data.giftName || '').toLowerCase();
+                    return r.trigger === 'gift' && (rVal === gName || gName.includes(rVal));
+                });
+                triggerCardAnimation(matchIndex !== -1 ? matchIndex : 0, data.sender || 'Supporter', data.giftName);
+            } else if (data.type === 'like') {
+                document.getElementById('totalLikesDisplay').innerText = data.totalLikes || 0;
+            } else if (data.type === 'follow') {
+                const matchIndex = CurrentRules.findIndex(r => r.trigger === 'follow');
+                triggerCardAnimation(matchIndex !== -1 ? matchIndex : 0, data.sender || 'Follower', 'Follow');
+            }
+        }
+
+        // Fallback polling for rules & status
+        function pollOverlayData() {
+            fetch(serverBase + '/api/overlay_data')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.rules && data.rules.length > 0) {
+                        CurrentRules = data.rules;
+                        renderCards();
+                    }
+                    if (data && data.username) {
+                        document.getElementById('liveStatusText').innerText = `TIKTOK: @${data.username}`;
+                    }
+                    if (data && data.totalLikes !== undefined) {
+                        document.getElementById('totalLikesDisplay').innerText = data.totalLikes;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Initialize
+        renderCards();
+        initEventStream();
+        setInterval(pollOverlayData, 3500);
+    </script>
+</body>
+</html>
